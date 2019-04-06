@@ -729,7 +729,7 @@ pub enum Config {
     /// - `InvalidConfigValue` if the interval provided is higher than the debounce interval.
     ///
     /// [`OngoingWrite`]: ./enum.DebouncedEvent.html#variant.OngoingWrite
-    OngoingWrites(Option<Duration>),
+    OngoingWrites(Option<(PathBuf, Duration)>),
 }
 
 /// The recommended `Watcher` implementation for the current platform

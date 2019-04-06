@@ -554,22 +554,37 @@ fn restart_timer(timer_id: &mut Option<u64>, path: PathBuf, timer: &mut WatchTim
 }
 
 fn handle_ongoing_write_event(timer: &WatchTimer, path: PathBuf, tx: &Sender<DebouncedEvent>) {
-    let mut ongoing_write_event = timer.ongoing_write_event.lock().unwrap();
+    let mut scheduled_ongoing_write_events = timer.ongoing_write_event.lock().unwrap();
     let mut event_details = Option::None;
-    if let Some(ref i) = *ongoing_write_event {
-        let now = Instant::now();
-        if i.0 <= now {
-            //fire event
-            let _ = tx.send(DebouncedEvent::OngoingWrite((i.1).clone()));
+    if let Some(ref i) = *scheduled_ongoing_write_events {
+
+        //check if there is already an event scheduled at path.
+        if !i.contains_key(&path) {
+            if let Some(ref d) = timer.ongoing_write_duration {
+
+                //check if there is a config at path.
+                if d.contains_key(&path) {
+
+                    //if there is a config at path, we need to schedule event.
+                    let duration = d.get(&path).unwrap();
+                    let fire_at = Instant::now() + *duration;
+                    event_details = Some((path, fire_at));
+                }
+            }
         } else {
-            event_details = Some((i.0, i.1.clone()));
-        }
-    } else {
-        //schedule event
-        if let Some(d) = timer.ongoing_write_duration {
-            let fire_at = Instant::now() + d;
-            event_details = Some((fire_at, path));
+            let inst = i.get(&path).unwrap();
+
+            let now = Instant::now();
+            if inst <= &now {
+                //fire event
+                let _ = tx.send(DebouncedEvent::OngoingWrite(path));
+            }
         }
     }
-    *ongoing_write_event = event_details;
+
+    if let Some(d) = event_details {
+        if let Some(ref mut i) = *scheduled_ongoing_write_events {
+            i.insert(d.0, d.1);
+        }
+    }
 }

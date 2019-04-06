@@ -1,6 +1,6 @@
 use super::super::{op, DebouncedEvent, Error, Result};
 use crossbeam_channel::Sender;
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap, BTreeMap};
 use std::path::PathBuf;
 use std::sync::{
     atomic::{self, AtomicBool},
@@ -26,7 +26,7 @@ struct ScheduleWorker {
     tx: Sender<DebouncedEvent>,
     operations_buffer: OperationsBuffer,
     stopped: Arc<AtomicBool>,
-    worker_ongoing_write_event: Arc<Mutex<Option<(Instant, PathBuf)>>>,
+    worker_ongoing_write_event: Arc<Mutex<Option<HashMap<PathBuf, Instant>>>>,
 }
 
 impl ScheduleWorker {
@@ -124,8 +124,8 @@ pub struct WatchTimer {
     delay: Duration,
     events: Arc<Mutex<VecDeque<ScheduledEvent>>>,
     stopped: Arc<AtomicBool>,
-    pub ongoing_write_event: Arc<Mutex<Option<(Instant, PathBuf)>>>,
-    pub ongoing_write_duration: Option<Duration>,
+    pub ongoing_write_event: Arc<Mutex<Option<HashMap<PathBuf, Instant>>>>,
+    pub ongoing_write_duration: Option<HashMap<PathBuf, Duration>>,
 }
 
 impl WatchTimer {
@@ -170,14 +170,19 @@ impl WatchTimer {
         }
     }
 
-    pub fn set_ongoing_write_duration(&mut self, duration: Option<Duration>) -> Result<bool> {
+    pub fn set_ongoing_write_duration(&mut self, duration: Option<(PathBuf, Duration)>) -> Result<bool> {
         if let Some(duration) = duration {
-            if duration > self.delay {
+            if duration.1 > self.delay {
                 return Err(Error::InvalidConfigValue);
             }
-        }
 
-        self.ongoing_write_duration = duration;
+            if None == self.ongoing_write_duration {
+                self.ongoing_write_duration = Some(HashMap::new());
+                let mut map = self.ongoing_write_event.lock().unwrap();
+                *map = Some(HashMap::new());
+            }
+            let owd = &self.ongoing_write_duration;
+        }
         Ok(true)
     }
 
