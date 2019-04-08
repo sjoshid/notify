@@ -61,7 +61,9 @@ impl ScheduleWorker {
                         //disable ongoing_write
                         let mut ongoing_write_event =
                             self.worker_ongoing_write_event.lock().unwrap();
-                        *ongoing_write_event = None;
+                        if let Some(ref mut m) = *ongoing_write_event {
+                            m.remove(&path);
+                        }
                         Some(DebouncedEvent::Write(path))
                     }
                     Some(op::Op::METADATA) => Some(DebouncedEvent::Metadata(path)),
@@ -181,7 +183,10 @@ impl WatchTimer {
                 let mut map = self.ongoing_write_event.lock().unwrap();
                 *map = Some(HashMap::new());
             }
-            let owd = &self.ongoing_write_duration;
+            let owd = &mut self.ongoing_write_duration;
+            if let Some(ref mut h) = owd {
+                h.insert(duration.0, duration.1);
+            }
         }
         Ok(true)
     }
