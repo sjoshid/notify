@@ -556,7 +556,8 @@ fn restart_timer(timer_id: &mut Option<u64>, path: PathBuf, timer: &mut WatchTim
 fn handle_ongoing_write_event(timer: &WatchTimer, path: PathBuf, tx: &Sender<DebouncedEvent>) {
     let mut scheduled_ongoing_write_events = timer.ongoing_write_event.lock().unwrap();
     let mut event_details = Option::None;
-    if let Some(ref i) = *scheduled_ongoing_write_events {
+    let path_clone = path.clone();
+    if let Some(ref mut i) = *scheduled_ongoing_write_events {
 
         //check if there is already an event scheduled at path.
         if !i.contains_key(&path) {
@@ -578,13 +579,20 @@ fn handle_ongoing_write_event(timer: &WatchTimer, path: PathBuf, tx: &Sender<Deb
             if inst <= &now {
                 //fire event
                 let _ = tx.send(DebouncedEvent::OngoingWrite(path));
+            } else {
+                event_details = Some((path, inst.clone()));
             }
         }
     }
 
-    if let Some(d) = event_details {
-        if let Some(ref mut i) = *scheduled_ongoing_write_events {
-            i.insert(d.0, d.1);
+    if let Some(ref mut i) = *scheduled_ongoing_write_events {
+        match event_details {
+            Some(d) => {
+                i.insert(d.0, d.1);
+            },
+            None => {
+                i.remove(&path_clone);
+            }
         }
     }
 }
